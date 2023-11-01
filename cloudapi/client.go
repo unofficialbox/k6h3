@@ -2,6 +2,7 @@ package cloudapi
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,8 +40,19 @@ type Client struct {
 
 // NewClient return a new client for the cloud API
 func NewClient(logger logrus.FieldLogger, token, host, version string, timeout time.Duration) *Client {
+	var qconf quic.Config
+	roundTripper := &http3.RoundTripper{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		QuicConfig:      &qconf,
+	}
+	defer roundTripper.Close()
+
+	h3Client := &http.Client{
+		Transport: roundTripper,
+	}
 	c := &Client{
-		client:        &http.Client{Timeout: timeout},
+		client: h3Client,
+		// client:        &http.Client{Timeout: timeout},
 		token:         token,
 		baseURL:       fmt.Sprintf("%s/v1", host),
 		version:       version,
