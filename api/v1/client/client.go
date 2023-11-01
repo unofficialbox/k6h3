@@ -3,11 +3,14 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/sirupsen/logrus"
 
 	v1 "go.k6.io/k6/api/v1"
@@ -30,9 +33,21 @@ func New(base string, options ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var qconf quic.Config
+	roundTripper := &http3.RoundTripper{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		QuicConfig:      &qconf,
+	}
+	defer roundTripper.Close()
+
+	h3Client := &http.Client{
+		Transport: roundTripper,
+	}
+
 	c := &Client{
 		BaseURL:    baseURL,
-		httpClient: http.DefaultClient,
+		httpClient: h3Client,
 	}
 
 	for _, option := range options {
