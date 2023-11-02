@@ -3,6 +3,7 @@ package httpext
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -182,6 +183,7 @@ func MakeRequest(ctx context.Context, state *lib.State, preq *ParsedHTTPRequest)
 	}
 
 	tracerTransport := newTransport(ctx, state, &preq.TagsAndMeta, preq.ResponseCallback)
+
 	var transport http.RoundTripper = tracerTransport
 
 	if state.Options.HTTPDebug.String != "" {
@@ -229,8 +231,20 @@ func MakeRequest(ctx context.Context, state *lib.State, preq *ParsedHTTPRequest)
 	}
 
 	resp := &Response{URL: preq.URL.URL, Request: respReq}
+
+	var qconf quic.Config
+	roundTripper := &http3.RoundTripper{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		QuicConfig:      &qconf,
+	}
+	defer roundTripper.Close()
+
+	// h3Client := &http.Client{
+	// 	Transport: roundTripper,
+	// }
+
 	client := http.Client{
-		Transport: transport,
+		Transport: roundTripper,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			resp.URL = req.URL.String()
 
